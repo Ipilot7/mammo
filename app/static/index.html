@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MammoAI Viewer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">MammoAI <span>viewer</span></div>
+    <div class="tools">
+      <label class="btn primary">
+        Загрузить снимок
+        <input id="file" type="file" accept=".png,.jpg,.jpeg,.dcm,application/dicom,image/*" hidden>
+      </label>
+      <button id="fit" class="btn" title="Вписать (F)">Вписать</button>
+      <button id="zoom1" class="btn" title="1:1">1:1</button>
+      <button id="toggle" class="btn" title="Показать/скрыть разметку (O)">Разметка</button>
+      <button id="invert" class="btn" title="Инверсия (I)">Инверсия</button>
+      <button id="export" class="btn" title="Сохранить PNG с разметкой">PNG</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section id="stage" class="stage">
+      <canvas id="canvas"></canvas>
+      <div id="drop" class="drop">
+        <p><b>Перетащите маммограмму сюда</b></p>
+        <p class="muted">PNG, JPG или DICOM · колесо — зум, перетаскивание — панорама</p>
+      </div>
+      <div id="busy" class="busy" hidden>Анализ…</div>
+      <div id="coords" class="coords"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="block">
+        <h2>Итог</h2>
+        <div id="overall" class="overall level-none">Нет снимка</div>
+        <div id="screening" class="screening" hidden></div>
+        <div id="filename" class="muted small"></div>
+      </div>
+
+      <div class="block">
+        <h2>Находки</h2>
+        <ol id="findings" class="findings"></ol>
+      </div>
+
+      <div class="block">
+        <h2>Изображение</h2>
+        <label class="slider">Яркость <input id="brightness" type="range" min="40" max="200" value="100"></label>
+        <label class="slider">Контраст <input id="contrast" type="range" min="40" max="250" value="100"></label>
+        <label class="slider">Порог детекции <output id="confOut">0.05</output>
+          <input id="conf" type="range" min="0.01" max="0.9" step="0.01" value="0.05"></label>
+        <button id="reset" class="btn small-btn">Сбросить</button>
+      </div>
+
+      <div class="block legend">
+        <span><i class="dot level-low"></i>BI-RADS 1–2 — норма / доброкачественное</span>
+        <span><i class="dot level-medium"></i>BI-RADS 3 — контроль</span>
+        <span><i class="dot level-high"></i>BI-RADS 4–5 — подозрение на рак</span>
+        <span class="muted">пунктир — вся грудь, рамка — очаг</span>
+      </div>
+
+      <p class="disclaimer">Исследовательский прототип, не медицинское изделие. Обучен на VinDr-Mammo:
+        категории и «подозрение на рак» отражают оценки BI-RADS рентгенологов, а не результаты биопсии.
+        Результаты не являются диагнозом и должны интерпретироваться врачом-рентгенологом.</p>
+    </aside>
+  </main>
+
+  <script src="/static/viewer.js"></script>
+</body>
+</html>
