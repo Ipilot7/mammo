@@ -2,8 +2,8 @@
 
 One row per annotated finding (box), plus one box-less row for every image without findings.
 - is_normal: breast BI-RADS 1-2 and no box -> healthy (detector background, screening label 0);
-- malignant: VinDr has no biopsy results, so it is a proxy: finding BI-RADS 4-5 = suspicious for
-  malignancy (1), BI-RADS 2-3 = probably benign (0);
+- malignant: legacy internal column name for a radiologist-label proxy, not pathology:
+  finding BI-RADS 4-5 = 1, finding BI-RADS 3 = 0, missing finding BI-RADS = null;
 - split: official VinDr test split; 15% of training studies (exams) go to val.
 Boxes are converted to the coordinates of the stored breast-cropped PNGs.
 image_path is relative to data/.
@@ -13,7 +13,15 @@ import ast
 import numpy as np
 import pandas as pd
 
-from mammo.config import BIRADS_CLASSES, DATA, LABELS_CSV, VINDR, birads_number, birads_to_index, finding_class
+from mammo.config import (
+    BIRADS_CLASSES,
+    DATA,
+    LABELS_CSV,
+    VINDR,
+    birads_number,
+    birads_to_index,
+    finding_class,
+)
 from mammo.split import assign_splits
 
 CATEGORY_MAP = {
@@ -34,6 +42,18 @@ def categories(value) -> list[str]:
     return [c for c in cats if c != "No Finding"]
 
 
+def transform_box(xmin, ymin, xmax, ymax, x0, y0, scale, width, height) -> tuple[float, float, float, float]:
+    """Map an original DICOM box into the stored breast-cropped image and clip it to image bounds."""
+    x1, x2 = np.clip([(xmin - x0) * scale, (xmax - x0) * scale], 0, width)
+    y1, y2 = np.clip([(ymin - y0) * scale, (ymax - y0) * scale], 0, height)
+    return float(x1), float(y1), float(x2), float(y2)
+
+
+def birads_class_name(value) -> str:
+    """Render a nullable pandas BI-RADS class index for diagnostics."""
+    return "?" if pd.isna(value) else BIRADS_CLASSES[int(value)]
+
+
 def build() -> pd.DataFrame:
     images = pd.read_csv(VINDR / "breast-level_annotations.csv")
     transforms = pd.read_csv(VINDR / "transforms.csv")
@@ -46,16 +66,26 @@ def build() -> pd.DataFrame:
     rows = []
     for f in findings.itertuples():
         im = t.loc[f.image_id]
-        x1, x2 = np.clip([(f.xmin - im.x0) * im.scale, (f.xmax - im.x0) * im.scale], 0, im.width)
-        y1, y2 = np.clip([(f.ymin - im.y0) * im.scale, (f.ymax - im.y0) * im.scale], 0, im.height)
+        x1, y1, x2, y2 = transform_box(
+            f.xmin, f.ymin, f.xmax, f.ymax, im.x0, im.y0, im.scale, im.width, im.height
+        )
         if x2 - x1 < 2 or y2 - y1 < 2:
             continue
         cats = categories(f.finding_categories)
         b = birads_number(f.finding_birads)
-        rows.append(dict(image_id=f.image_id, x1=x1, y1=y1, x2=x2, y2=y2,
-                         primary_finding_type="|".join(cats),
-                         finding_class=finding_class(CATEGORY_MAP.get(cats[0], "other")) if cats else "other",
-                         birads_idx=birads_to_index(b), malignant=None if b is None else int(b >= 4)))
+        rows.append(
+            {
+                "image_id": f.image_id,
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "primary_finding_type": "|".join(cats),
+                "finding_class": finding_class(CATEGORY_MAP.get(cats[0], "other")) if cats else "other",
+                "birads_idx": birads_to_index(b),
+                "malignant": None if b is None else int(b >= 4),
+            }
+        )
     boxes = pd.DataFrame(rows, columns=["image_id", "x1", "y1", "x2", "y2", "primary_finding_type",
                                         "finding_class", "birads_idx", "malignant"])
 
@@ -86,8 +116,7 @@ def main():
                                       suspicious=("breast_birads", lambda b: int((b >= 3).sum()))))
     boxes = df[df.has_box == 1]
     print("boxes by class:", boxes.finding_class.value_counts().to_dict())
-    print("boxes by finding BI-RADS:", boxes.birads_idx.map(lambda i: BIRADS_CLASSES[i] if pd.notna(i) else "?")
-          .value_counts().to_dict())
+    print("boxes by finding BI-RADS:", boxes.birads_idx.map(birads_class_name).value_counts().to_dict())
     print("breast BI-RADS:", images.breast_birads.value_counts().sort_index().to_dict())
     leak = df.groupby("patient_id")["split"].nunique().max()
     print(f"max splits per study: {leak} (must be 1)")

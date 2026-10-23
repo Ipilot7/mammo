@@ -6,13 +6,13 @@
 
   // Colour = BI-RADS group: green 1-2, yellow 3 (and 0), red 4-5.
   const COLORS = { normal: "#34c77b", low: "#34c77b", medium: "#f5b83d", high: "#ff4d5e" };
-  const LEVEL_RU = { low: "доброкачественное", medium: "вероятно доброкачественное, контроль", high: "подозрение на рак" };
+  const LEVEL_RU = { low: "доброкачественное", medium: "вероятно доброкачественное, контроль", high: "повышенная категория BI-RADS" };
   const BIRADS_RU = {
     1: "норма",
     2: "доброкачественные изменения",
     3: "вероятно доброкачественное, контроль",
-    4: "подозрение на рак",
-    5: "высокое подозрение на рак",
+    4: "подозрительная категория BI-RADS",
+    5: "крайне подозрительная категория BI-RADS",
   };
   const TYPE_RU = {
     mass: "Образование",
@@ -81,7 +81,7 @@
       }
       c.restore();
 
-      const label = `${i + 1}. ${TYPE_RU[f.type] || f.type} · BI-RADS ${f.birads} · ${Math.round(f.malignancy_prob * 100)}%`;
+      const label = `${i + 1}. ${TYPE_RU[f.type] || f.type} · BI-RADS ${f.birads} · ${Math.round(f.p_birads_4_5 * 100)}%`;
       c.save();
       c.font = "600 12px system-ui, sans-serif";
       const tw = c.measureText(label).width + 10;
@@ -224,7 +224,7 @@
         `Вся грудь: <b style="color:${COLORS[group]}">BI-RADS ${sc.birads}</b> — ${BIRADS_RU[sc.birads]}` +
         `<div class="small muted">BI-RADS ≥3: ${Math.round(sc.p_suspicious * 100)}% ` +
         `(${sc.verdict === "normal" ? "ниже порога" : "требует внимания"}) · ` +
-        `BI-RADS 4–5: ${Math.round(sc.p_cancer * 100)}%</div>` +
+        `BI-RADS 4–5: ${Math.round(sc.p_birads_4_5 * 100)}%</div>` +
         `<div class="bprobs">${bars}</div>`;
     }
 
@@ -235,10 +235,10 @@
     (result ? result.findings : []).forEach((f, i) => {
       const li = document.createElement("li");
       li.className = `level-${f.level}`;
-      const pct = Math.round(f.malignancy_prob * 100);
+      const pct = Math.round(f.p_birads_4_5 * 100);
       li.innerHTML = `
         <div class="title"><span>${i + 1}. ${TYPE_RU[f.type] || f.type}</span><span>${pct}%</span></div>
-        <div class="meta">BI-RADS ${f.birads} · ${LEVEL_RU[f.level]} · подозрение на рак ${pct}% · детекция ${Math.round(f.type_conf * 100)}%</div>
+        <div class="meta">BI-RADS ${f.birads} · ${LEVEL_RU[f.level]} · вероятность BI-RADS 4–5: ${pct}% · детекция ${Math.round(f.type_conf * 100)}%</div>
         <div class="bar"><i class="level-${f.level}" style="width:${pct}%"></i></div>`;
       li.addEventListener("mouseenter", () => setHover(i));
       li.addEventListener("mouseleave", () => setHover(-1));

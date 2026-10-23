@@ -2,6 +2,12 @@
 __pycache__/
 data/
 models/*.pt
+models/*.sha256
+models/**/*.pt
+models/**/*.sha256
+models/logs/
 models/runs/
+runs/
+weights/
 *.zip
 yolo11*.pt

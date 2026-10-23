@@ -12,8 +12,8 @@ MODELS = ROOT / "models"
 # Detector classes; rare finding types are merged into "other".
 FINDING_CLASSES = ["mass", "calcifications", "asymmetry", "architectural_distortion", "other"]
 
-# BI-RADS buckets predicted by the classifier.
-BIRADS_CLASSES = ["0", "1-2", "3", "4", "5", "6"]
+# Finding BI-RADS classes available in VinDr-Mammo annotations.
+BIRADS_CLASSES = ["3", "4", "5"]
 
 # Converted VinDr PNGs are stored at this height (breast-cropped); detection runs at IMAGE_HEIGHT.
 STORE_HEIGHT = 1536
@@ -28,9 +28,11 @@ def birads_number(value) -> int | None:
 
 
 def birads_to_index(value) -> int | None:
-    """Map a raw BI-RADS value (0..6, '4a', 'BI-RADS 4', ...) to an index in BIRADS_CLASSES."""
+    """Map a VinDr finding BI-RADS value to an index in BIRADS_CLASSES."""
     n = birads_number(value)
-    return {0: 0, 1: 1, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5}.get(n)
+    if n is None:
+        return None
+    return {3: 0, 4: 1, 5: 2}.get(n)
 
 
 def finding_class(finding_type: str) -> str:

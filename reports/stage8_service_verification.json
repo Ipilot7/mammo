@@ -1,0 +1,88 @@
+{
+  "stage": 8,
+  "verified_at": "2026-10-23T03:33:01+00:00",
+  "service": {
+    "framework": "FastAPI",
+    "test_url": "http://127.0.0.1:18765",
+    "device": "cpu",
+    "required_models": [
+      "models/detector.pt",
+      "models/classifier.pt",
+      "models/screening.pt"
+    ],
+    "hardening": {
+      "bounded_upload_bytes": 104857600,
+      "bounded_request_body_bytes": 105906176,
+      "body_limit_before_multipart_parsing": true,
+      "streamed_body_limit_without_content_length": true,
+      "decoded_pixel_limit": 50000000,
+      "dicom_frame_limit": 1,
+      "dicom_transfer_syntax_allowlist": true,
+      "dicom_photometric_allowlist": ["MONOCHROME1", "MONOCHROME2"],
+      "detector_sha256_verified_before_ultralytics_load": true,
+      "oversized_status": 413,
+      "empty_status": 400,
+      "invalid_image_status": 400,
+      "invalid_image_detail": "cannot process image",
+      "internal_exception_details_exposed": false,
+      "inference_requests_serialized": true,
+      "blocking_inference_runs_in_threadpool": true,
+      "device_override_environment": "MAMMO_DEVICE",
+      "returned_filename_is_cross_platform_basename_only": true
+    }
+  },
+  "api_end_to_end": {
+    "health": {
+      "status": "ok",
+      "device": "cpu"
+    },
+    "prepared_png": {
+      "http_status": 200,
+      "seconds": 3.851059,
+      "input_dimensions": [689, 1536],
+      "returned_png_verified": true,
+      "screening_schema_verified": true,
+      "finding_proxy_field_verified": true
+    },
+    "source_dicom": {
+      "http_status": 200,
+      "seconds": 4.449,
+      "input_dimensions": [2800, 3518],
+      "returned_png_verified": true,
+      "screening_schema_verified": true
+    },
+    "invalid_confidence_status": 422
+  },
+  "viewer_end_to_end": {
+    "headless_browser": "Chrome for Testing 145",
+    "desktop_viewport": [1440, 900],
+    "mobile_viewport": [720, 1000],
+    "upload_and_analysis_completed": true,
+    "canvas_rendered": true,
+    "result_panel_rendered": true,
+    "toolbar_controls_exercised": [
+      "fit",
+      "one_to_one_zoom",
+      "overlay_toggle",
+      "invert"
+    ],
+    "desktop_console_errors": [],
+    "mobile_horizontal_overflow": false,
+    "mobile_panel_width": 720,
+    "mobile_stage_height": 600
+  },
+  "quality_gates": {
+    "pytest_passed": 47,
+    "ruff": "passed",
+    "compileall": "passed",
+    "javascript_syntax": "passed",
+    "notebook_synchronization": "passed",
+    "git_diff_check": "passed"
+  },
+  "limitations": [
+    "Research prototype; not a medical device and not for clinical decisions.",
+    "Testing was local and did not include authentication, TLS termination, reverse-proxy deployment, or multi-host load testing.",
+    "The service intentionally serializes inference; throughput scaling requires a controlled worker/GPU deployment design.",
+    "Model quality limitations remain those documented in reports/stage7_evaluation.json."
+  ]
+}

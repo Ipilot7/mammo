@@ -52,7 +52,13 @@ def suspicious_prob(probs):
 
 
 def load_screening(path, device="cpu"):
-    ckpt = torch.load(path, map_location=device, weights_only=False)
+    ckpt = torch.load(path, map_location=device, weights_only=True)
+    checkpoint_classes = ckpt.get("birads_classes")
+    if checkpoint_classes != BREAST_BIRADS:
+        raise ValueError(
+            f"incompatible BI-RADS classes in screening checkpoint: "
+            f"{checkpoint_classes!r}; expected {BREAST_BIRADS!r}"
+        )
     model = ScreeningModel(ckpt["arch"], pretrained=False)
     model.load_state_dict(ckpt["state_dict"])
     return model.to(device).eval(), float(ckpt["threshold"])

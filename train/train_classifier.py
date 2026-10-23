@@ -1,4 +1,4 @@
-"""Train the malignancy / BI-RADS classifier on lesion crops around ground-truth boxes."""
+"""Train the BI-RADS 4-5 proxy / finding BI-RADS classifier on ground-truth lesion crops."""
 import argparse
 
 import numpy as np
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as T
 
 from mammo.classifier import MEAN, STD, LesionClassifier
-from mammo.config import DATA, LABELS_CSV, MODELS
+from mammo.config import BIRADS_CLASSES, DATA, LABELS_CSV, MODELS
 from mammo.crops import crop_lesion
 
 
@@ -55,6 +55,17 @@ def to_device(x, device):
     return x.to(device)
 
 
+def scaled_optimizer_step(scaler, optimizer, scheduler) -> bool:
+    """Advance the LR schedule only when GradScaler did not skip the optimizer step."""
+    scale_before = scaler.get_scale()
+    scaler.step(optimizer)
+    scaler.update()
+    stepped = scaler.get_scale() >= scale_before
+    if stepped:
+        scheduler.step()
+    return stepped
+
+
 @torch.no_grad()
 def evaluate(model, loader, device):
     model.eval()
@@ -69,8 +80,8 @@ def evaluate(model, loader, device):
     m, b = mal_y >= 0, bir_y >= 0
     auc = roc_auc_score(mal_y[m], mal_p[m]) if len(np.unique(mal_y[m])) == 2 else float("nan")
     return {
-        "malignant_auc": auc,
-        "malignant_acc": float(((mal_p[m] > 0.5) == mal_y[m]).mean()) if m.any() else float("nan"),
+        "birads_4_5_auc": auc,
+        "birads_4_5_acc": float(((mal_p[m] > 0.5) == mal_y[m]).mean()) if m.any() else float("nan"),
         "birads_acc": float((bir_p[b] == bir_y[b]).mean()) if b.any() else float("nan"),
     }
 
@@ -124,17 +135,22 @@ def main():
                 loss = loss + 0.5 * ce(lb, bir)
             opt.zero_grad()
             scaler.scale(loss).backward()
-            scaler.step(opt)
-            scaler.update()
-            sched.step()
+            scaled_optimizer_step(scaler, opt, sched)
             total += loss.item()
         metrics = evaluate(model, val_dl, device)
         print(f"epoch {epoch + 1}/{args.epochs} loss {total / len(train_dl):.4f} {metrics}")
-        score = metrics["malignant_auc"] if not np.isnan(metrics["malignant_auc"]) else metrics["malignant_acc"]
+        score = metrics["birads_4_5_auc"] if not np.isnan(metrics["birads_4_5_auc"]) else metrics["birads_4_5_acc"]
         if score > best:
             best = score
-            torch.save({"arch": args.arch, "state_dict": model.state_dict(), "val": metrics},
-                       MODELS / "classifier.pt")
+            torch.save(
+                {
+                    "arch": args.arch,
+                    "birads_classes": BIRADS_CLASSES,
+                    "state_dict": model.state_dict(),
+                    "val": metrics,
+                },
+                MODELS / "classifier.pt",
+            )
             print(f"  saved {MODELS / 'classifier.pt'}")
 
 

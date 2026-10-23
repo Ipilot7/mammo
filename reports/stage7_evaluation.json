@@ -1,0 +1,149 @@
+{
+  "stage": 7,
+  "completed_at": "2026-10-22T17:56:46+00:00",
+  "purpose": "Research-only full training and held-out evaluation on VinDr-Mammo",
+  "clinical_use": false,
+  "target_semantics": "BI-RADS labels and P(BI-RADS 4-5) proxy; not pathology-confirmed cancer probability",
+  "dataset": {
+    "prepared_images": 20000,
+    "split_images": {
+      "train": 13584,
+      "val": 2416,
+      "test": 4000
+    },
+    "detector_test_images_evaluated": 3973,
+    "detector_test_instances": 452,
+    "classifier_test_crops": 429,
+    "end_to_end_test_images": 4000,
+    "finding_labeled_abnormal_images": 357,
+    "healthy_images": 3616,
+    "abnormal_images_without_boxes": 27
+  },
+  "training": {
+    "classifier": {
+      "architecture": "efficientnet_b3",
+      "epochs": 30,
+      "best_validation": {
+        "birads_4_5_auc": 0.8266009852216748,
+        "birads_4_5_acc": 0.74235807860262,
+        "birads_acc": 0.5895196506550219
+      }
+    },
+    "screening": {
+      "architecture": "efficientnet_b3",
+      "epochs": 12,
+      "best_validation": {
+        "birads_acc": 0.7425496688741722,
+        "auc_1_2_vs_3_5": 0.7795306859205776,
+        "auc_1_2_vs_4_5": 0.8429563303565775,
+        "threshold": 0.07437340915203094,
+        "sensitivity": 0.9,
+        "specificity": 0.36958483754512633
+      }
+    },
+    "detector": {
+      "architecture": "yolo11s",
+      "epochs": 40,
+      "image_size": 1280,
+      "batch_size": 2,
+      "best_epoch": 39,
+      "best_validation": {
+        "precision": 0.34621,
+        "recall": 0.21488,
+        "map50": 0.10344,
+        "map50_95": 0.04888
+      }
+    }
+  },
+  "held_out_test": {
+    "evaluation_configuration": {
+      "detector_image_size": 1280,
+      "pipeline_image_size": 1280,
+      "pipeline_confidence": 0.05,
+      "pipeline_nms_iou": 0.45,
+      "pipeline_agnostic_nms": true,
+      "pipeline_max_detections": 5,
+      "lesion_match_iou": 0.3,
+      "lesion_matching": "greedy one-to-one by descending IoU"
+    },
+    "detector": {
+      "precision": 0.56,
+      "recall": 0.188,
+      "map50": 0.0823,
+      "map50_95": 0.0416
+    },
+    "classifier_ground_truth_crops": {
+      "birads_4_5_auc": 0.7717881292261457,
+      "birads_4_5_acc": 0.6853146853146853,
+      "birads_acc": 0.585081585081585
+    },
+    "end_to_end": {
+      "finding_metric_images": 357,
+      "lesions_found_iou_gte_0_3_top5": {
+        "found": 257,
+        "total": 452,
+        "recall": 0.569
+      },
+      "image_level_birads_4_5_proxy_auc": 0.697,
+      "birads_accuracy_including_detector_misses": 0.398,
+      "birads_confusion_labels": ["missed", "3", "4", "5"],
+      "birads_confusion_rows_true_cols_pred": [
+        [0, 0, 0, 0],
+        [51, 54, 59, 6],
+        [40, 24, 63, 15],
+        [1, 1, 18, 25]
+      ],
+      "healthy_images": 3616,
+      "false_boxes": {
+        "confidence_0_05": {
+          "per_image": 0.33,
+          "images_with_any_box_fraction": 0.24
+        },
+        "confidence_0_25": {
+          "per_image": 0.06,
+          "images_with_any_box_fraction": 0.05
+        }
+      }
+    },
+    "whole_breast_screening": {
+      "birads_acc": 0.73075,
+      "auc_1_2_vs_3_5": 0.7763275776640856,
+      "auc_1_2_vs_4_5": 0.8212420108161259,
+      "threshold": 0.07437340915203094,
+      "sensitivity": 0.8880208333333334,
+      "specificity": 0.37029867256637167,
+      "confusion_rows_true_cols_pred": [
+        [2393, 259, 14, 10, 6],
+        [417, 467, 21, 25, 4],
+        [113, 47, 11, 12, 3],
+        [63, 39, 9, 26, 15],
+        [2, 2, 0, 16, 26]
+      ]
+    }
+  },
+  "artifacts": {
+    "classifier": {
+      "path": "models/classifier.pt",
+      "bytes": 43371473,
+      "sha256": "6f1e08d45f1a2541b2e2e1c34f8909f9bd84b78568dd5ccd6f7db29cc5c05c96"
+    },
+    "screening": {
+      "path": "models/screening.pt",
+      "bytes": 43376523,
+      "sha256": "b00ba67c78d003930b14c7c86e2fdfb9061bdf8ad0e02e782021e61b0e46b925"
+    },
+    "detector": {
+      "path": "models/detector.pt",
+      "bytes": 19175386,
+      "sha256": "663414d2a5c66d08bd859ad54576c71326c5c375a3d35dab5e934f481a642726"
+    },
+    "training_log": "models/logs/stage7-full-training.log",
+    "detector_results": "models/runs/detector/results.csv"
+  },
+  "limitations": [
+    "Research prototype; not validated for clinical decision-making.",
+    "VinDr labels are radiologist BI-RADS annotations, not pathology-confirmed cancer outcomes.",
+    "Detector recall and end-to-end BI-RADS accuracy remain limited.",
+    "External and prospective validation have not been performed."
+  ]
+}

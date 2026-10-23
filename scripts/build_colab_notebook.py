@@ -4,6 +4,7 @@ The project code is embedded as a base64 zip (files.upload/download are unavaila
 and trained weights are returned through a private Hugging Face model repo.
 Re-run this script after changing the code.
 """
+# ruff: noqa: ISC004
 import base64
 import io
 import json
@@ -15,7 +16,8 @@ INCLUDE = ["mammo", "train", "scripts", "requirements.txt"]
 
 # Helper injected into the notebook: streams command output, shows progress bars
 # (which redraw with \r) as live-updating lines instead of dropping them.
-RUN_HELPER = r"""import re, time
+RUN_HELPER = r"""import hashlib, re, time
+from pathlib import Path
 from IPython.display import display, HTML
 
 ANSI = re.compile(r'\x1b\[[0-9;?]*[A-Za-z]')
@@ -64,7 +66,12 @@ def upload(name):
     api = HfApi(token=HF_TOKEN)
     repo = f"{api.whoami()['name']}/{HF_REPO}"
     api.create_repo(repo, private=True, exist_ok=True)
-    api.upload_file(path_or_fileobj=f'models/{name}', path_in_repo=name, repo_id=repo)
+    model_path = Path('models') / name
+    digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    checksum_path = Path(f'{model_path}.sha256')
+    checksum_path.write_text(f'{digest}  {name}\n')
+    api.upload_file(path_or_fileobj=model_path, path_in_repo=name, repo_id=repo)
+    api.upload_file(path_or_fileobj=checksum_path, path_in_repo=f'{name}.sha256', repo_id=repo)
     print(f'{name} → huggingface.co/{repo}')"""
 
 
@@ -171,7 +178,7 @@ def main():
                  "    upload(name)\n"
                  "\n"
                  "train_once('screening.pt', f'python -m train.train_screening --epochs {SCREENING_EPOCHS} --batch 12 --workers 2 --device cuda')"),
-        ("markdown", "### Классификатор очагов: BI-RADS находки + подозрение на рак (~0.5 ч)"),
+        ("markdown", "### Классификатор очагов: BI-RADS находки + P(BI-RADS 4–5), не диагноз рака (~0.5 ч)"),
         ("code", "train_once('classifier.pt', f'python -m train.train_classifier --epochs {CLASSIFIER_EPOCHS} --batch 16 --workers 2 --device cuda')"),
         ("markdown", "### Детектор очагов YOLO11s, 1280 px (~3.5 ч)"),
         ("code", "train_once('detector.pt', f'python -m train.train_detector --epochs {DETECTOR_EPOCHS} --batch 8 --device 0')"),

@@ -1,7 +1,7 @@
 # MammoAI
 
 Сервис для маммограмм: определяет категорию BI-RADS всей груди (1–5), находит очаги, оценивает их
-BI-RADS и подозрение на рак и показывает всё это в веб-просмотрщике.
+BI-RADS и P(BI-RADS 4–5) и показывает всё это в веб-просмотрщике.
 
 > Исследовательский прототип, **не медицинское изделие**.
 
@@ -30,9 +30,18 @@ BI-RADS и подозрение на рак и показывает всё эт�
 - `mammo/labels.py` → `data/labels.csv`: строка на каждую рамку + строки для снимков без рамок;
   test — официальный, val — 15% исследований из training.
 
-**Важно:** в VinDr нет результатов биопсии. «Подозрение на рак» — это вероятность того, что рентгенолог
-поставил бы BI-RADS 4–5, а не вероятность рака по гистологии. Рамки в VinDr в основном у находок BI-RADS 3–5,
-поэтому BI-RADS 1–2 определяются по всей груди, а зелёные рамки (BI-RADS 2) менее надёжны.
+Для уже распакованной локальной копии повторное скачивание и копирование DICOM не нужны:
+```sh
+mkdir -p data/vindr
+ln -s /path/to/vindr-mammo-1.0.0 data/vindr/source
+python scripts/vindr_fetch.py status --source data/vindr/source --limit 10 --no-upload
+python scripts/vindr_fetch.py download --source data/vindr/source --limit 10 --no-upload
+```
+Символическая ссылка остаётся локальной и не включается в Git; подготовленные PNG сохраняются в `data/vindr/png`.
+
+**Важно:** в VinDr нет результатов биопсии. `P(BI-RADS 4–5)` — вероятность оценки рентгенолога,
+а не вероятность рака по гистологии. Классификатор очагов обучается только на размеченных находках
+BI-RADS 3–5; категории 1–2 определяются моделью всей груди и не выдаются классификатором рамок.
 
 Предыдущий вариант на MammoGPS / KAU-BCMD / DMID лежит в `legacy/` и не используется.
 
@@ -45,22 +54,37 @@ BI-RADS и подозрение на рак и показывает всё эт�
 
 Затем локально:
 ```sh
-.venv/bin/hf download <логин>/mammoai-weights detector.pt classifier.pt screening.pt --local-dir models
+.venv/bin/hf download <логин>/mammoai-weights \
+  detector.pt detector.pt.sha256 classifier.pt classifier.pt.sha256 screening.pt screening.pt.sha256 \
+  --local-dir models
+(cd models && sha256sum -c detector.pt.sha256 classifier.pt.sha256 screening.pt.sha256)
 ```
+Используйте только checkpoints из доверенного приватного репозитория и обязательно проверяйте SHA-256:
+формат Ultralytics/PyTorch нельзя считать безопасным для загрузки файлов неизвестного происхождения.
 
 ## Запуск сервиса
 ```sh
 python -m venv .venv && .venv/bin/pip install -r requirements-serve.txt
 .venv/bin/uvicorn app.main:app --port 8000
 ```
+Для запуска без GPU используйте `MAMMO_DEVICE=cpu .venv/bin/uvicorn app.main:app --port 8000`.
+Сервис требует все три проверенных файла `models/detector.pt`, `models/classifier.pt` и
+`models/screening.pt`. Для detector обязателен корректный `models/detector.pt.sha256`, который
+проверяется до загрузки Ultralytics checkpoint. Размер HTTP body ограничен до multipart-разбора,
+размер файла — 100 МБ; дополнительно ограничены декодированные пиксели и число кадров.
+DICOM-ввод сервиса предназначен для однокадровых несжатых grayscale mammogram (Implicit/Explicit
+VR Little Endian или Explicit VR Big Endian). Inference-запросы выполняются последовательно,
+чтобы одновременные обращения не переполняли память GPU.
+
 http://localhost:8000 — перетащить снимок. Колесо — зум, перетаскивание — панорама, `F` — вписать,
 `O` — разметка, `I` — инверсия, клик по находке — приблизить, экспорт PNG с разметкой.
 
 ```sh
 curl -F file=@snimok.dcm "http://localhost:8000/api/analyze?conf=0.05"
 ```
-Ответ: `overall_birads`, `screening` (`birads`, `birads_probs`, `p_suspicious` = P(≥3), `p_cancer` = P(4–5)),
-`breast_contour`, `findings` (`bbox_xyxy`, `type`, `birads`, `malignancy_prob` = P(BI-RADS 4–5), `level`).
+Ответ: `overall_birads`, `screening` (`birads`, `birads_probs`, `p_suspicious` = P(≥3),
+`p_birads_4_5` = P(4–5)), `breast_contour`, `findings` (`bbox_xyxy`, `type`, `birads`,
+`p_birads_4_5` = P(BI-RADS 4–5), `level`). Это прокси оценки рентгенолога, не вероятность рака по гистологии.
 
 ## Структура
 | Путь | Назначение |
