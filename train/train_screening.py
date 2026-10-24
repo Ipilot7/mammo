@@ -12,8 +12,19 @@ from torchvision import transforms as T
 
 from mammo.config import DATA, LABELS_CSV, MODELS
 from mammo.preprocess import to_gray_u8
-from mammo.screening import BREAST_BIRADS, ScreeningModel, screening_image, suspicious_prob, to_tensor
-from train.train_classifier import autocast, pick_device, to_device
+from mammo.screening import (
+    BREAST_BIRADS,
+    ScreeningModel,
+    screening_image,
+    suspicious_prob,
+    to_tensor,
+)
+from train.train_classifier import (
+    autocast,
+    pick_device,
+    scaled_optimizer_step,
+    to_device,
+)
 
 
 def image_table(split: str | None = None) -> pd.DataFrame:
@@ -48,18 +59,18 @@ def screening_metrics(probs, birads, threshold=None, target_sensitivity=0.9) -> 
     """probs: (N, 5) class probabilities; birads: true breast BI-RADS 1-5.
 
     - auc_1_2_vs_3_5: healthy/benign vs needs attention, scored by P(BI-RADS >= 3);
-    - auc_1_2_vs_4_5: healthy/benign vs suspicious for cancer, scored by P(4) + P(5);
+    - auc_1_2_vs_4_5: BI-RADS 1-2 vs 4-5, scored by P(4) + P(5);
     - threshold on P(>= 3) for target_sensitivity, with sensitivity/specificity.
     """
     probs, birads = np.asarray(probs), np.asarray(birads)
-    p_susp, p_cancer = suspicious_prob(probs), probs[:, 3:].sum(1)
+    p_susp, p_birads_4_5 = suspicious_prob(probs), probs[:, 3:].sum(1)
     sick = birads >= 3
     out = {"birads_acc": float((probs.argmax(1) + 1 == birads).mean())}
     if len(set(sick)) == 2:
         out["auc_1_2_vs_3_5"] = float(roc_auc_score(sick, p_susp))
     keep = (birads <= 2) | (birads >= 4)
     if len(set(birads[keep] >= 4)) == 2:
-        out["auc_1_2_vs_4_5"] = float(roc_auc_score(birads[keep] >= 4, p_cancer[keep]))
+        out["auc_1_2_vs_4_5"] = float(roc_auc_score(birads[keep] >= 4, p_birads_4_5[keep]))
     if threshold is None and sick.any():
         threshold = float(np.quantile(p_susp[sick], 1 - target_sensitivity))
     if threshold is not None:
@@ -76,8 +87,10 @@ def predict(model, loader, device):
     model.eval()
     probs = []
     for x, _ in loader:
-        with autocast(device):
-            probs.append(torch.softmax(model(to_device(x, device)).float(), 1).cpu())
+        # Full precision is intentional: rare mammograms can overflow B3 activations
+        # during FP16 validation even when the trained parameters remain finite.
+        logits = model(to_device(x, device).float())
+        probs.append(torch.softmax(logits.float(), 1).cpu())
     return torch.cat(probs).numpy()
 
 
@@ -130,9 +143,7 @@ def main():
             loss = ce(logits.float(), y)
             opt.zero_grad()
             scaler.scale(loss).backward()
-            scaler.step(opt)
-            scaler.update()
-            sched.step()
+            scaled_optimizer_step(scaler, opt, sched)
             total += loss.item()
         m = screening_metrics(predict(model, val_dl, device), val_df.breast_birads)
         print(f"epoch {epoch + 1}/{args.epochs} loss {total / len(train_dl):.4f} "
@@ -140,8 +151,16 @@ def main():
         score = m.get("auc_1_2_vs_3_5", m["birads_acc"])
         if score > best:
             best = score
-            torch.save({"arch": args.arch, "state_dict": model.state_dict(), "threshold": m.get("threshold", 0.5),
-                        "val": m}, MODELS / "screening.pt")
+            torch.save(
+                {
+                    "arch": args.arch,
+                    "birads_classes": BREAST_BIRADS,
+                    "state_dict": model.state_dict(),
+                    "threshold": m.get("threshold", 0.5),
+                    "val": m,
+                },
+                MODELS / "screening.pt",
+            )
             print(f"  saved {MODELS / 'screening.pt'} (threshold {m.get('threshold', 0.5):.3f}); "
                   f"confusion rows=true BI-RADS 1-5: {m['confusion']}", flush=True)
 

@@ -5,6 +5,21 @@ import shutil
 from ultralytics import YOLO
 
 from mammo.config import MODELS, YOLO_DIR
+from mammo.inference import (
+    verify_detector_checkpoint,
+    write_detector_checkpoint_sidecar,
+)
+
+
+def promote_detector_checkpoint(best, target):
+    """Checksum and promote a locally trained detector checkpoint."""
+    write_detector_checkpoint_sidecar(best)
+    verify_detector_checkpoint(best)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(best, target)
+    write_detector_checkpoint_sidecar(target)
+    verify_detector_checkpoint(target)
+    return target
 
 
 def main():
@@ -43,8 +58,8 @@ def main():
         hsv_v=0.3,
     )
     best = MODELS / "runs" / "detector" / "weights" / "best.pt"
-    shutil.copy(best, MODELS / "detector.pt")
-    print(f"saved {MODELS / 'detector.pt'}")
+    target = promote_detector_checkpoint(best, MODELS / "detector.pt")
+    print(f"saved {target} and verified SHA-256 sidecars")
 
 
 if __name__ == "__main__":

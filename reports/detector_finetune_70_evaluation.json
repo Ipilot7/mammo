@@ -1,0 +1,71 @@
+{
+  "evaluated_at": "2026-10-23T03:10:57+00:00",
+  "candidate": {
+    "path": "models/runs/detector-finetune-70/weights/best.pt",
+    "sha256": "73c63d62e4934f1882e575c9bf2d5f32fc69e671da25b8a7ecb4abf2d5144de7",
+    "training": {
+      "requested_extra_epochs": 30,
+      "completed_extra_epochs": 20,
+      "stopped_by_early_stopping": true,
+      "best_epoch_in_extension": 10,
+      "validation_map50": 0.10775,
+      "validation_map50_95": 0.05031
+    }
+  },
+  "production": {
+    "path": "models/detector.pt",
+    "sha256": "663414d2a5c66d08bd859ad54576c71326c5c375a3d35dab5e934f481a642726",
+    "unchanged": true
+  },
+  "evaluation_configuration": {
+    "split": "test",
+    "images": 3973,
+    "instances": 452,
+    "imgsz": 1280,
+    "lesion_matching": "greedy one-to-one by descending IoU",
+    "lesion_iou_threshold": 0.3,
+    "pipeline_confidence": 0.05,
+    "pipeline_max_detections": 5,
+    "command": "python -m train.evaluate --device cuda --detector-checkpoint models/runs/detector-finetune-70/weights/best.pt"
+  },
+  "baseline": {
+    "precision": 0.56,
+    "recall": 0.188,
+    "map50": 0.0823,
+    "map50_95": 0.0416,
+    "lesions_found": 257,
+    "lesions_total": 452,
+    "image_level_birads_4_5_proxy_auc": 0.697,
+    "image_level_birads_accuracy": 0.398,
+    "healthy_false_boxes_per_image_conf_0_05": 0.33,
+    "healthy_false_boxes_per_image_conf_0_25": 0.06
+  },
+  "candidate_heldout": {
+    "precision": 0.337,
+    "recall": 0.176,
+    "map50": 0.077,
+    "map50_95": 0.0374,
+    "lesions_found": 261,
+    "lesions_total": 452,
+    "image_level_birads_4_5_proxy_auc": 0.714,
+    "image_level_birads_accuracy": 0.423,
+    "healthy_false_boxes_per_image_conf_0_05": 0.38,
+    "healthy_false_boxes_per_image_conf_0_25": 0.06
+  },
+  "candidate_minus_baseline": {
+    "precision": -0.223,
+    "recall": -0.012,
+    "map50": -0.0053,
+    "map50_95": -0.0042,
+    "lesions_found": 4,
+    "image_level_birads_4_5_proxy_auc": 0.017,
+    "image_level_birads_accuracy": 0.025,
+    "healthy_false_boxes_per_image_conf_0_05": 0.05,
+    "healthy_false_boxes_per_image_conf_0_25": 0.0
+  },
+  "decision": {
+    "promote_candidate": false,
+    "reason": "The candidate improved validation and some end-to-end proxy metrics, but degraded held-out detector precision, recall, mAP50 and mAP50-95 while increasing low-threshold healthy false boxes. The existing production checkpoint remains selected."
+  },
+  "holdout_note": "This is a second model comparison on the official test split. It must no longer be described as an untouched final holdout for future model selection; future tuning requires a separate development-validation split and a new external or sequestered final test set."
+}

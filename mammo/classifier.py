@@ -1,4 +1,4 @@
-"""Two-head lesion classifier: malignancy (binary) + BI-RADS bucket."""
+"""Two-head lesion classifier: BI-RADS 4-5 proxy (binary) + finding BI-RADS class."""
 import timm
 import torch
 from torch import nn
@@ -24,7 +24,13 @@ class LesionClassifier(nn.Module):
 
 
 def load_classifier(path, device="cpu") -> LesionClassifier:
-    ckpt = torch.load(path, map_location=device, weights_only=False)
+    ckpt = torch.load(path, map_location=device, weights_only=True)
+    checkpoint_classes = ckpt.get("birads_classes")
+    if checkpoint_classes != BIRADS_CLASSES:
+        raise ValueError(
+            f"incompatible BI-RADS classes in classifier checkpoint: "
+            f"{checkpoint_classes!r}; expected {BIRADS_CLASSES!r}"
+        )
     model = LesionClassifier(ckpt["arch"], pretrained=False)
     model.load_state_dict(ckpt["state_dict"])
     return model.to(device).eval()
